@@ -1,8 +1,8 @@
-# EE-LLM
+# ExitFlow
 
 ### Confidence-gated early-exit inference for Llama 3.1 8B
 
-EE-LLM is a research prototype that asks a practical systems question: **can an
+ExitFlow is a research prototype that asks a practical systems question: **can an
 LLM stop computing once it is already confident about the next token?** It
 splits a frozen Llama 3.1 8B backbone into eight four-layer stages and attaches
 small, distillation-trained exit heads at layers 4–28. A local forwarder uses
@@ -15,8 +15,8 @@ multi-GPU segmented inference, and benchmark aggregation.
 
 > **Project status:** research prototype. The lightweight pipeline and training
 > utilities are unit tested; full experiments require gated access to the Llama
-> 3.1 8B weights and CUDA hardware. Benchmark claims should be treated as
-> experimental until reproduced from the documented workflow.
+> 3.1 8B weights and CUDA hardware. The available benchmark evidence is reported
+> below, including its limitations.
 
 ## Why it is interesting
 
@@ -76,8 +76,8 @@ intentionally excluded from version control.
 Python 3.10+ is recommended.
 
 ```bash
-git clone <your-repository-url>
-cd eellm
+git clone https://github.com/Roger-Zhou0/ExitFlow.git
+cd ExitFlow
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -145,6 +145,59 @@ Raw run output belongs under `logs/` and can be summarized with
 `scripts/aggregate_mmlu_results.py`. Do not commit per-request logs or model
 weights; publish a small, provenance-rich summary or release artifact instead.
 
+## Results and claim status
+
+One historical MMLU diagnostic run is recoverable from the original experiment
+notes. It is reported here for provenance, not as evidence of a speedup: the
+matched full-depth baseline and detailed latency logs were not retained in the
+public mirror.
+
+| Workload | Configuration | Accuracy | Exit-depth distribution | Median latency | P95 latency |
+| --- | --- | ---: | --- | ---: | ---: |
+| MMLU English subset (1,531 prompts) | Early-exit diagnostic | 23.91% (366/1,531) | L4 50.95%, L8 14.24%, L12 3.14%, L16 4.83%, L20 9.73%, L24 2.61%, L28 14.50% | 2,299 ms | 3,097 ms |
+| MMLU full-depth baseline | Required for comparison | Not retained | Layer 32 by definition | Not retained | Not retained |
+| GSM8K | No publishable run retained | — | — | — | — |
+
+The recovered run used Llama 3.1 8B, the Dolly 15K `tr_0.6` threshold profile,
+FP16 inference, gate temperature 2.0, decode temperature 0.8, batch size 1, and
+at most 64 generated tokens per prompt on a Perlmutter-oriented CUDA runtime.
+Its mean latency was 1,941 ms, its mean final exit depth was 10.96 layers, and
+generation averaged 47.64 tokens per sample. The inference logs do not record
+the exact GPU allocation, so the latency numbers are not portable across
+systems. More importantly, no matched full-depth run survives, so the data
+cannot establish a latency reduction or a no-accuracy-loss result.
+Accordingly, **this repository does not claim a measured 25% latency reduction**.
+Any resume or project description should use that number only if the original
+matched run can be recovered and published with its hardware, baseline, prompt
+and generation lengths, exit distribution, and latency summary.
+
+The recovered evaluation logs use NERSC `/pscratch` paths, and the checked-in
+SLURM jobs target **NERSC Perlmutter**. ORBIT is not identified in the recovered
+run metadata and should not be named as the benchmark machine.
+
+<details>
+<summary>Dolly 15K <code>tr_0.6</code> gate configuration</summary>
+
+| Exit layer | Minimum logit | Minimum margin | Maximum entropy |
+| ---: | ---: | ---: | ---: |
+| 4 | 5.1093 | 0.1577 | 11.3805 |
+| 8 | 5.7695 | 0.1566 | 11.1596 |
+| 12 | 6.6474 | 0.2030 | 11.0985 |
+| 16 | 6.5248 | 0.2292 | 11.0756 |
+| 20 | 5.5996 | 0.1406 | 11.1767 |
+| 24 | 5.1861 | 0.3608 | 11.3411 |
+| 28 | 6.1077 | 1.0184 | 11.3519 |
+
+</details>
+
+### Baseline definition
+
+The appropriate comparison is the same model, runtime, precision, batch size,
+prompt set, and generation settings with `--force-final-exit`, so every token
+uses the layer-32 head. Because both paths disable KV caching, a future speedup
+claim must be described as relative to this same-runtime, no-KV-cache baseline—not
+relative to an optimized serving engine with KV caching.
+
 ## Limitations
 
 - KV caching is disabled in the current research path, so prefixes are
@@ -155,6 +208,17 @@ weights; publish a small, provenance-rich summary or release artifact instead.
   experimental topology and should be adapted to the host.
 - Early exits can trade quality for latency; a baseline using the final head is
   essential for every reported result.
+
+## Relation to prior work
+
+This is an independent Hugging Face/PyTorch implementation and does not build on
+the codebase of Chen et al., [*EE-LLM: Large-Scale Training and Inference of
+Early-Exit Large Language Models with 3D Parallelism*](https://proceedings.mlr.press/v235/chen24ae.html)
+(ICML 2024). Their Megatron-LM framework focuses on scaling early-exit training
+and inference with 3D parallelism and KV-cache-compatible generation. ExitFlow
+instead explores confidence gates colocated with small model segments and local
+activation routing in a single-node research runtime. The rename avoids implying
+that this repository is the official EE-LLM implementation.
 
 ## Contributing
 
@@ -167,6 +231,11 @@ issues, follow [SECURITY.md](SECURITY.md) instead of filing a public issue.
 This project builds on PyTorch, Hugging Face Transformers and Datasets, and the
 Llama 3.1 model family. Users are responsible for complying with the licenses
 and terms of all models and datasets they use.
+
+Developed through a Rutgers WINLAB research collaboration and published with
+permission. This repository is a public mirror of the original collaborative
+project; its history was intentionally consolidated before release to remove
+credentials, generated logs, checkpoints, and datasets.
 
 ## License
 

@@ -1,8 +1,12 @@
-# Proposal: Segmented Inference with Forwarder-Based Exit Heads on Llama-3 8B
+# Historical Proposal: ExitFlow on Llama 3.1 8B
+
+> This document records the original project plan. Numerical goals below are
+> targets, not measured outcomes. See the README's **Results and claim status**
+> section for the recoverable experimental evidence.
 
 ## 1. Project Title
 
-**Segmented Inference with Forwarder-Controlled Early Exits in Llama-3 8B Instruct**
+**ExitFlow: Segmented Inference with Forwarder-Controlled Early Exits in Llama 3.1 8B Instruct**
 
 ---
 

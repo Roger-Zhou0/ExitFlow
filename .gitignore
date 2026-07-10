@@ -27,6 +27,7 @@ data/
 logs/
 eval_output*/
 eval_outputs*/
+eval_result
 *.log
 *.out
 *.err
