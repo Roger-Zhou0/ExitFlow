@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving EE-LLM. Keep changes focused, reproducible, and easy to
+Thanks for improving ExitFlow. Keep changes focused, reproducible, and easy to
 review.
 
 ## Development setup

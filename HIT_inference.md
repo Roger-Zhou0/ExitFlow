@@ -1,4 +1,4 @@
-# Quad‑A100 早退推理金字塔（单节点多段多副本）实施说明
+# ExitFlow Quad‑A100 早退推理金字塔（单节点多段多副本）实施说明
 
 目标：在单节点 4×A100 上把模型分成 8 个 segment，浅段（Segment‑1）多副本分布在 GPU0/1，Segment‑2 副本在 GPU2，Segment‑3+后续段在 GPU3，通过 `SegmentedQueueExecutor` 做竞争式拉取，实现早退推理的吞吐扩展。
 
