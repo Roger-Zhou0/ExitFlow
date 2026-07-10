@@ -1,0 +1,5 @@
+Explain early-exit inference and why it can reduce latency.
+What are the main greenhouse gases and how do they affect climate?
+Summarize the steps of the water cycle in two sentences.
+Name three potential risks of deploying large language models in production.
+Compare supervised fine-tuning and reinforcement learning from human feedback.

@@ -1,0 +1,44 @@
+{
+  "forwarder@4": {
+    "logit_threshold": 1.65,
+    "margin_gate": 0.05,
+    "entropy_gate": 1.4,
+    "temperature_scale": 1.0
+  },
+  "forwarder@8": {
+    "logit_threshold": 1.6,
+    "margin_gate": 0.05,
+    "entropy_gate": 1.4,
+    "temperature_scale": 1.0
+  },
+  "forwarder@12": {
+    "logit_threshold": 1.55,
+    "margin_gate": 0.05,
+    "entropy_gate": 1.45,
+    "temperature_scale": 1.0
+  },
+  "forwarder@16": {
+    "logit_threshold": 1.5,
+    "margin_gate": 0.05,
+    "entropy_gate": 1.45,
+    "temperature_scale": 1.0
+  },
+  "forwarder@20": {
+    "logit_threshold": 1.45,
+    "margin_gate": 0.05,
+    "entropy_gate": 1.5,
+    "temperature_scale": 1.0
+  },
+  "forwarder@24": {
+    "logit_threshold": 1.4,
+    "margin_gate": 0.05,
+    "entropy_gate": 1.5,
+    "temperature_scale": 1.0
+  },
+  "forwarder@28": {
+    "logit_threshold": 1.35,
+    "margin_gate": 0.05,
+    "entropy_gate": 1.55,
+    "temperature_scale": 1.0
+  }
+}

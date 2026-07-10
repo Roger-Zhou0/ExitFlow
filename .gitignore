@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+client_secrets.json
+token.json
+settings.yaml
+config/secret_key
+config/codex.sqlite3*
+
+# Models, datasets, and generated experiment output
+artifacts/
+checkpoints/
+data/
+logs/
+eval_output*/
+eval_outputs*/
+*.log
+*.out
+*.err
+*.safetensors
+
+# Tool and OS state
+.DS_Store
+.idea/
+.vscode/
+.mplconfig/
+
+# Build output
+build/
+dist/
+*.egg-info/

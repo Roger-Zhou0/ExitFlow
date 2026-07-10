@@ -1,0 +1,230 @@
+{
+  "project": {
+    "name": "Segmented Inference with Forwarder-Controlled Early Exits",
+    "version": "0.2.0",
+    "description": "Baseline configuration for segmented inference runtime and training artifacts."
+  },
+  "model": {
+    "base_model": "meta-llama/Llama-3.1-8B-Instruct",
+    "precision": "bf16",
+    "segments": [
+      {
+        "id": "segment-1",
+        "layers": {
+          "start": 1,
+          "end": 4
+        },
+        "components": [
+          "token_embedding",
+          "transformer_layers_1_4",
+          "forwarder@4"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_1.pt"
+        },
+        "forwarder": {
+          "id": "forwarder@4",
+          "exit_head_weights": "artifacts/trained-exit-heads_kd_round_final/exit_heads/forwarder@4.pt",
+          "forwarder_weights": "weights/forwarder_4.pt",
+          "next_segment": "segment-2"
+        }
+      },
+      {
+        "id": "segment-2",
+        "layers": {
+          "start": 5,
+          "end": 8
+        },
+        "components": [
+          "transformer_layers_5_8",
+          "forwarder@8"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_2.pt"
+        },
+        "forwarder": {
+          "id": "forwarder@8",
+          "exit_head_weights": "artifacts/trained-exit-heads_kd_round_final/exit_heads/forwarder@8.pt",
+          "forwarder_weights": "weights/forwarder_8.pt",
+          "next_segment": "segment-3"
+        }
+      },
+      {
+        "id": "segment-3",
+        "layers": {
+          "start": 9,
+          "end": 12
+        },
+        "components": [
+          "transformer_layers_9_12",
+          "forwarder@12"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_3.pt"
+        },
+        "forwarder": {
+          "id": "forwarder@12",
+          "exit_head_weights": "artifacts/trained-exit-heads_kd_round_final/exit_heads/forwarder@12.pt",
+          "forwarder_weights": "weights/forwarder_12.pt",
+          "next_segment": "segment-4"
+        }
+      },
+      {
+        "id": "segment-4",
+        "layers": {
+          "start": 13,
+          "end": 16
+        },
+        "components": [
+          "transformer_layers_13_16",
+          "forwarder@16"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_4.pt"
+        },
+        "forwarder": {
+          "id": "forwarder@16",
+          "exit_head_weights": "artifacts/trained-exit-heads_kd_round_final/exit_heads/forwarder@16.pt",
+          "forwarder_weights": "weights/forwarder_16.pt",
+          "next_segment": "segment-5"
+        }
+      },
+      {
+        "id": "segment-5",
+        "layers": {
+          "start": 17,
+          "end": 20
+        },
+        "components": [
+          "transformer_layers_17_20",
+          "forwarder@20"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_5.pt"
+        },
+        "forwarder": {
+          "id": "forwarder@20",
+          "exit_head_weights": "artifacts/trained-exit-heads_kd_round_final/exit_heads/forwarder@20.pt",
+          "forwarder_weights": "weights/forwarder_20.pt",
+          "next_segment": "segment-6"
+        }
+      },
+      {
+        "id": "segment-6",
+        "layers": {
+          "start": 21,
+          "end": 24
+        },
+        "components": [
+          "transformer_layers_21_24",
+          "forwarder@24"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_6.pt"
+        },
+        "forwarder": {
+          "id": "forwarder@24",
+          "exit_head_weights": "artifacts/trained-exit-heads_kd_round_final/exit_heads/forwarder@24.pt",
+          "forwarder_weights": "weights/forwarder_24.pt",
+          "next_segment": "segment-7"
+        }
+      },
+      {
+        "id": "segment-7",
+        "layers": {
+          "start": 25,
+          "end": 28
+        },
+        "components": [
+          "transformer_layers_25_28",
+          "forwarder@28"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_7.pt"
+        },
+        "forwarder": {
+          "id": "forwarder@28",
+          "exit_head_weights": "artifacts/trained-exit-heads_kd_round_final/exit_heads/forwarder@28.pt",
+          "forwarder_weights": "weights/forwarder_28.pt",
+          "next_segment": "segment-8"
+        }
+      },
+      {
+        "id": "segment-8",
+        "layers": {
+          "start": 29,
+          "end": 32
+        },
+        "components": [
+          "transformer_layers_29_32",
+          "final_lm_head"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_8.pt",
+          "lm_head": "weights/final_head.pt"
+        },
+        "forwarder": null
+      }
+    ]
+  },
+  "runtime": {
+    "native_backbone_dir": "artifacts/trained-exit-heads_kd_round_final/backbone",
+    "native_dtype": "float16",
+    "queue_capacity": 128,
+    "router": {
+      "strategy": "round_robin",
+      "segment_1_pool_size": 2
+    },
+    "segment_pools": {
+      "segment-1": ["cuda:0", "cuda:0", "cuda:1", "cuda:1"],
+      "segment-2": ["cuda:0", "cuda:1"],
+      "segment-3": ["cuda:2", "cuda:2"],
+      "segment-4": ["cuda:2"],
+      "segment-5": ["cuda:3"],
+      "segment-6": ["cuda:3"],
+      "segment-7": ["cuda:3"],
+      "segment-8": ["cuda:3"]
+    },
+    "workers": {
+      "segment_1": { "device": "cuda:0" },
+      "segment_2": { "device": "cuda:2" },
+      "segment_3": { "device": "cuda:3" },
+      "segment_4": { "device": "cuda:3" },
+      "segment_5": { "device": "cuda:3" },
+      "segment_6": { "device": "cuda:3" },
+      "segment_7": { "device": "cuda:3" },
+      "segment_8": { "device": "cuda:3" }
+    }
+  },
+  "training": {
+    "knowledge_distillation": {
+      "temperature": 2.0,
+      "loss_weights": {
+        "forwarder@4": 0.4,
+        "forwarder@8": 0.5,
+        "forwarder@12": 0.6,
+        "forwarder@16": 0.7,
+        "forwarder@20": 0.8,
+        "forwarder@24": 0.9,
+        "forwarder@28": 1.0
+      }
+    },
+    "frozen_backbone": true,
+    "token_budget": 1500000000,
+    "optimizer": "adamw"
+  },
+  "evaluation": {
+    "benchmarks": [
+      "data/benchmarks/IFEval.jsonl",
+      "data/benchmarks/AlpacaEval2.jsonl",
+      "data/benchmarks/GSM8K.jsonl",
+      "data/benchmarks/MMLU_en.jsonl"
+    ],
+    "metrics": [
+      "accuracy",
+      "compliance",
+      "avg_exit_depth",
+      "p95_latency"
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "project": {
+    "name": "Smoke Test Config",
+    "version": "0.1.0",
+    "description": "Lightweight manifest for local smoke tests with tiny GPT-2."
+  },
+  "model": {
+    "base_model": "debug/tiny-gpt2",
+    "precision": "fp32",
+    "segments": [
+      {
+        "id": "segment-1",
+        "layers": {
+          "start": 1,
+          "end": 1
+        },
+        "components": [
+          "transformer_layer_1",
+          "forwarder@1"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_1.pt"
+        },
+        "forwarder": {
+          "id": "forwarder@1",
+          "exit_head_weights": "weights/exit_head_1.pt",
+          "forwarder_weights": "weights/forwarder_1.pt",
+          "next_segment": "segment-2"
+        }
+      },
+      {
+        "id": "segment-2",
+        "layers": {
+          "start": 2,
+          "end": 2
+        },
+        "components": [
+          "transformer_layer_2",
+          "final_lm_head"
+        ],
+        "artifacts": {
+          "segment_weights": "weights/segment_2.pt",
+          "lm_head": "weights/final_head.pt"
+        },
+        "forwarder": null
+      }
+    ]
+  },
+  "training": {
+    "knowledge_distillation": {
+      "temperature": 2.0,
+      "loss_weights": {
+        "forwarder@1": 1.0
+      }
+    },
+    "frozen_backbone": true,
+    "token_budget": 100000,
+    "optimizer": "adamw"
+  }
+}
