@@ -127,8 +127,18 @@ print(result["exit_segment"])
 ```
 
 This path demonstrates orchestration with the repository's compact test
-artifacts. The native autoregressive path in `runtime/autoregressive.py` loads
-the exported backbone and exit heads for real model inference.
+artifacts. There are **two distinct inference paths**:
+
+- `runtime/autoregressive.py` and `runtime/autoregressive_batch.py` run the
+  complete backbone and then inspect intermediate exit-head predictions.
+  They are **diagnostics, not compute-skipping inference**. The MMLU script
+  uses this path, so an exit at layer 4 still executes all 32 layers.
+- `runtime/autoregressive_queue.py` uses the segmented queue executor and can
+  physically stop at an intermediate head instead of computing later layers.
+  This is a prototype; a validated, matched quality/latency benchmark for
+  this path is **not** included in the public repository.
+
+The two paths' latency figures must not be treated as interchangeable.
 
 ## Evaluation
 
@@ -145,12 +155,40 @@ Raw run output belongs under `logs/` and can be summarized with
 `scripts/aggregate_mmlu_results.py`. Do not commit per-request logs or model
 weights; publish a small, provenance-rich summary or release artifact instead.
 
+### Run the full-backbone diagnostic and its final-head control
+
+With locally available model artifacts, thresholds, and the MMLU JSONL file:
+
+```bash
+MMLU_MODE=diagnostic bash scripts/run_mmlu_full_eval.sh
+MMLU_MODE=full_depth bash scripts/run_mmlu_full_eval.sh
+```
+
+The full-evaluation wrapper creates a fresh output directory per run.
+The launcher refuses to mix existing question logs with new predictions.
+These runs use deterministic per-prompt sampling seeds by default.
+Both modes compute the **full** backbone. The
+final-head control checks head predictions under a matched diagnostic
+protocol; it **does not** measure acceleration. The runner also accepts
+`MANIFEST_PATH`, `METADATA_PATH`, `THRESHOLDS_PATH`, `QUESTIONS_PATH`,
+`OUTPUT_DIR`, `PYTHON_BIN`, `DEVICE`, `SEED`, `TEMPERATURE`, and
+`MAX_NEW_TOKENS` environment overrides.
+
+New JSON logs identify `execution_mode`, `physical_layer_skipping`,
+`force_final_exit`, and `end_to_end_latency_ms`. The older
+`total_latency_ms` excludes the extra initial depth probe.
+
 ## Results and claim status
 
 One historical MMLU diagnostic run is recoverable from the original experiment
-notes. It is reported here for provenance, not as evidence of a speedup: the
-matched full-depth baseline and detailed latency logs were not retained in the
-public mirror.
+notes. It is reported here for provenance, **not as validated accuracy or
+evidence of a speedup**: the matched full-depth baseline and detailed latency
+logs were not retained in the public mirror. The former aggregation code
+could sort question files lexicographically, misaligning predictions and
+answer keys for 100+ questions; the per-run summary could also select a later
+generation step rather than the first answer token. The historical reported
+accuracy has not been rescored using corrected logs, and we do not know
+whether these bugs affected that particular saved figure.
 
 | Workload | Configuration | Accuracy | Exit-depth distribution | Median latency | P95 latency |
 | --- | --- | ---: | --- | ---: | ---: |
@@ -192,11 +230,17 @@ run metadata and should not be named as the benchmark machine.
 
 ### Baseline definition
 
-The appropriate comparison is the same model, runtime, precision, batch size,
-prompt set, and generation settings with `--force-final-exit`, so every token
-uses the layer-32 head. Because both paths disable KV caching, a future speedup
-claim must be described as relative to this same-runtime, no-KV-cache baseline—not
-relative to an optimized serving engine with KV caching.
+For comparing exit-head **predictions** in the full-backbone diagnostic, use
+the same model, runtime, precision, prompt set, generation settings, and
+sampling seeds with `--force-final-exit`, so every token uses the layer-32
+head. Both versions still perform all 32 layers, so this is **not a speedup
+baseline**.
+
+For an actual latency or speedup claim, use the compute-skipping segmented
+runtime and compare it with matched full-depth execution through the same
+runtime on the same hardware and workload. Both research paths currently
+disable KV caching, so comparisons cannot be generalized to optimized
+serving engines that reuse KV caches.
 
 ## Limitations
 
