@@ -1,10 +1,12 @@
-"""Batch-run autoregressive early-exit evaluation over a list of prompts."""
+"""Batch-run full-backbone exit-head diagnostics over a list of prompts."""
 
 import argparse
 import importlib.util
 import json
 import sys
 from pathlib import Path
+
+import torch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -32,6 +34,8 @@ def parse_args():
     parser.add_argument("--device", default="cuda", help="Torch device string")
     parser.add_argument("--show-steps", action="store_true", help="Print per-step detail for each prompt")
     parser.add_argument("--no-per-step", action="store_true", help="Skip per-step logging to save memory")
+    parser.add_argument("--force-final-exit", action="store_true", help="Use final LM head for every token (still full-backbone compute)")
+    parser.add_argument("--seed", type=int, default=0, help="Base seed; each prompt uses seed + 1-based index")
     return parser.parse_args()
 
 
@@ -77,15 +81,18 @@ def main():
         thresholds_path=Path(args.thresholds),
         device=args.device,
         per_step_logging=not args.no_per_step,
+        force_final_exit=args.force_final_exit,
     )
 
     for index, prompt in enumerate(questions, start=1):
+        torch.manual_seed(args.seed + index)
         print(f"\n--- prompt {index}/{len(questions)} ---")
         result = generator.generate(
             prompt,
             max_new_tokens=args.max_new_tokens,
             decode_temperature=args.temperature,
         )
+        result["sampling_seed"] = args.seed + index
         _print_result(result, args.show_steps)
         out_path = output_dir / f"question_{index:02d}.json"
         out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2))

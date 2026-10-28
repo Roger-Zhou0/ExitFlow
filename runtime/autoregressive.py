@@ -1,4 +1,9 @@
-"""Auto-regressive generation helper that uses exit heads for early exits."""
+"""Full-backbone autoregressive exit-head diagnostic.
+
+All Transformer layers are executed for each token. Intermediate exit heads
+are probed after the full forward pass, so this path does not skip compute.
+Use the segmented runtime for physical layer skipping.
+"""
 
 import argparse
 import json
@@ -204,24 +209,16 @@ class AutoRegressiveGenerator:
     @staticmethod
     def _select_summary_step(
         per_step: List[Dict[str, Any]],
-        final_decision: ExitDecision,
     ) -> Optional[Dict[str, Any]]:
-        if not per_step:
-            return None
-        for step in per_step:
-            if (
-                step.get("exit_forwarder_id") == final_decision.forwarder_id
-                and step.get("exit_layer_index") == final_decision.layer_index
-            ):
-                return step
-        return per_step[0]
+        # MMLU and other next-token diagnostics must score the first generated
+        # token, not whichever later step happens to match the final exit.
+        return per_step[0] if per_step else None
 
     def _summarize_choice_prediction(
         self,
         per_step: List[Dict[str, Any]],
-        final_decision: ExitDecision,
     ) -> Tuple[Optional[List[Optional[float]]], Optional[str]]:
-        summary_step = self._select_summary_step(per_step, final_decision)
+        summary_step = self._select_summary_step(per_step)
         if summary_step is None:
             return None, None
         choice_logits = summary_step.get("choice_logits")
@@ -361,9 +358,19 @@ class AutoRegressiveGenerator:
                 break
         total_latency = (time.perf_counter() - start) * 1000
         generated_text = self.tokenizer.decode(generated, skip_special_tokens=True)
-        choice_summary, predicted_choice = self._summarize_choice_prediction(per_step, final_decision)
+        choice_summary, predicted_choice = self._summarize_choice_prediction(per_step)
+        backbone_layer_count = max(
+            segment["layers"]["end"] for segment in self.manifest["model"]["segments"]
+        )
         result: Dict[str, Any] = {
             "prompt": prompt,
+            "execution_mode": "full_backbone_exit_head_diagnostic",
+            "physical_layer_skipping": False,
+            "backbone_layers_run_per_forward": backbone_layer_count,
+            "backbone_forward_calls": len(generated) + 1,  # probe + decoding
+            "force_final_exit": self.force_final_exit,
+            "probe_included_in_total_latency": False,
+            "end_to_end_latency_ms": probe_latency + total_latency,
             "generated_text": generated_text,
             "generated_ids": generated,
             "exit_decision": self._serialize_exit_decision(final_decision),
@@ -415,7 +422,11 @@ def _print_result(result: Dict[str, Any], show_steps: bool = False) -> None:
     print("\nGenerated answer:\n")
     print(result["generated_text"])
     print("\n=== timing & exit info ===")
-    print("total latency (ms):", f"{result['total_latency_ms']:.2f}")
+    print("execution mode:", result.get("execution_mode", "legacy_unlabeled"))
+    print("physically skips backbone layers:", result.get("physical_layer_skipping", "unknown"))
+    print("decode-only latency (ms):", f"{result['total_latency_ms']:.2f}")
+    if "end_to_end_latency_ms" in result:
+        print("latency including initial probe (ms):", f"{result['end_to_end_latency_ms']:.2f}")
     print("probe latency (ms):", f"{result['probe_latency_ms']:.2f}")
     print(
         "initial exit:",

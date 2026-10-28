@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate MMLU benchmark results from early-exit logs."""
+"""Aggregate full-backbone MMLU diagnostic logs with correct sample ordering."""
 
 from __future__ import annotations
 
@@ -27,7 +27,12 @@ def load_gold_answers(path: Path) -> list[str]:
 
 
 def iter_log_files(log_dir: Path) -> Iterable[Path]:
-    for path in sorted(log_dir.glob("question_*.json")):
+    # Filenames use a minimum width of two digits, not a fixed width:
+    # lexical ordering puts question_100.json before question_11.json.
+    for path in sorted(
+        log_dir.glob("question_*.json"),
+        key=lambda path: int(path.stem.removeprefix("question_")),
+    ):
         yield path
 
 
@@ -70,11 +75,15 @@ def parse_result(data: dict) -> dict:
     first_step = per_step[0] if per_step else {}
     token_text = first_step.get("token", "").strip()
     first_token_logit = first_step.get("scores", {}).get("logit")
-    choice_logits_source = data.get("choice_logits")
+    # MMLU is a next-token evaluation: use the FIRST step. Some legacy logs
+    # stored a top-level predicted_choice from a later, final-exit-matched step.
+    choice_logits_source = first_step.get("choice_logits")
     if choice_logits_source is None:
-        choice_logits_source = first_step.get("choice_logits")
+        choice_logits_source = data.get("choice_logits")
     choice_logits = parse_choice_logits(choice_logits_source)
-    predicted_choice = data.get("predicted_choice") or select_highest(choice_logits)
+    predicted_choice = first_step.get("predicted_choice") or select_highest(choice_logits)
+    if predicted_choice is None:
+        predicted_choice = data.get("predicted_choice")
     result = {
         "prompt": data.get("prompt") or "",
         "generated_text": data.get("generated_text") or "",
@@ -83,7 +92,15 @@ def parse_result(data: dict) -> dict:
         "logit": first_token_logit,
         "base_exit_id": first_step.get("exit_forwarder_id"),
         "base_layer": first_step.get("exit_layer_index"),
-        "total_latency": data.get("total_latency_ms"),
+        # Current logs include the extra prompt probe in end_to_end_latency_ms.
+        # Legacy logs only measured the decode loop.
+        "total_latency": data.get("end_to_end_latency_ms", data.get("total_latency_ms")),
+        "latency_scope": (
+            "probe_and_decode" if data.get("end_to_end_latency_ms") is not None
+            else "legacy_decode_only"
+        ),
+        "execution_mode": data.get("execution_mode", "legacy_unlabeled"),
+        "physical_layer_skipping": data.get("physical_layer_skipping"),
     }
     result.update({f"logit_{label}": choice_logits[label] for label in ("A", "B", "C", "D")})
     result["choice_logits"] = choice_logits
@@ -115,9 +132,19 @@ def main() -> None:
     latencies: list[float] = []
     tokens_per_sample: list[int] = []
 
-    for idx, log_file in enumerate(iter_log_files(log_dir)):
-        if idx >= len(gold_answers):
-            break
+    log_files = list(iter_log_files(log_dir))
+    observed_ids = [
+        int(path.stem.removeprefix("question_")) for path in log_files
+    ]
+    expected_ids = list(range(1, len(gold_answers) + 1))
+    if observed_ids != expected_ids:
+        raise ValueError(
+            "Incomplete or misnumbered MMLU logs: expected exactly "
+            f"{len(expected_ids)} question_*.json files numbered 1..{len(expected_ids)}; "
+            f"found {len(observed_ids)} with indices {observed_ids[:10]}..."
+        )
+
+    for idx, log_file in enumerate(log_files):
         gold = gold_answers[idx]
         data = json.loads(log_file.read_text("utf-8"))
         result = parse_result(data)
@@ -139,6 +166,9 @@ def main() -> None:
                 "exit": result["base_exit_id"],
                 "layer": result["base_layer"],
                 "total_latency": result["total_latency"],
+                "latency_scope": result["latency_scope"],
+                "execution_mode": result["execution_mode"],
+                "physical_layer_skipping": result["physical_layer_skipping"],
                 "correct": is_correct,
             }
         )
@@ -201,7 +231,7 @@ def main() -> None:
             mean_lat = sum(sorted_lat) / n
             median_lat = sorted_lat[n // 2]
             p95_lat = sorted_lat[int(0.95 * (n - 1))]
-            print("\nLatency (total_latency_ms per sample):")
+            print("\nLatency (new logs include probe; legacy logs decode-only):")
             print(f"  mean   = {mean_lat:.2f} ms")
             print(f"  median = {median_lat:.2f} ms")
             print(f"  p95    = {p95_lat:.2f} ms")
